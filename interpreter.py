@@ -39,14 +39,36 @@ class Token:
 class Interpreter:
     def __init__(self, text):
         # client string input, e.g. "3+5"
+
         self.text = text
         # self.pos is an index into self.text
         self.pos = 0
         # current token instance
         self.current_token = None
+        self.current_char = self.text[self.pos]
 
     def error(self):
-        raise Exception('Error parsing input')
+        raise Exception('Invalid syntax')
+
+    def advance(self):
+        """Advance the `pos` pointer and set the `current_char` variable."""
+        self.pos += 1
+        if self.pos > len(self.text) - 1:
+            self.current_char = None  # Indicates end of input
+        else:
+            self.current_char = self.text[self.pos]
+
+    def skip_whitespace(self):
+        while self.current_char is not None and self.current_char == " ":
+            self.advance()
+
+    def integer(self):
+        """Return a (multidigit) integer consumed from the input."""
+        result = ''
+        while self.current_char is not None and self.current_char.isdigit():
+            result += self.current_char
+            self.advance()
+        return int(result)
 
     def get_next_token(self):
         """Lexical analyzer (also known as scanner or tokenizer)
@@ -70,36 +92,43 @@ class Interpreter:
         # integer, create an INTEGER token, increment self.pos
         # index to point to the next character after the digit,
         # and return the INTEGER token
-        if current_char == " ":
-            self.pos += 1
-            return self.get_next_token()
+        while self.current_char is not None:
 
-        if current_char.isdigit():
-            token = Token(INTEGER, int(current_char))
-            self.pos += 1
-            return token
+            if self.current_char == " ":
+                self.advance()
+                return self.get_next_token()
 
-        if current_char == '+':
-            token = Token(PLUS, current_char)
-            self.pos += 1
-            return token
+            if self.current_char.isdigit():
+                return Token(INTEGER, self.integer())
 
-        if current_char == '-':
-            token = Token(MINUS, current_char)
-            self.pos += 1
-            return token
+            if current_char.isdigit():
+                token = Token(INTEGER, int(current_char))
+                self.advance()
+                return token
 
-        if current_char == '*':
-            token = Token(MUL, current_char)
-            self.pos += 1
-            return token
+            if current_char == '+':
+                token = Token(PLUS, current_char)
+                self.advance()
+                return token
 
-        if current_char == '/':
-            token = Token(DIV, current_char)
-            self.pos += 1
-            return token
+            if current_char == '-':
+                token = Token(MINUS, current_char)
+                self.advance()
+                return token
 
-        self.error()
+            if current_char == '*':
+                token = Token(MUL, current_char)
+                self.advance()
+                return token
+
+            if current_char == '/':
+                token = Token(DIV, current_char)
+                self.advance()
+                return token
+
+            self.error()
+
+        return Token(EOF, None)
 
     def eat(self, token_type):
         # compare the current token type with the passed token
@@ -111,43 +140,36 @@ class Interpreter:
         else:
             self.error()
 
+    def term(self):
+        """Return an INTEGER token value"""
+        token = self.current_token
+        self.eat(INTEGER)
+        return token.value
+
     def expr(self):
-        """expr -> INTEGER PLUS INTEGER"""
+        """Parser / Interpreter """
         # set current token to the first token taken from the input
         self.current_token = self.get_next_token()
 
-        # we expect the current token to be a single-digit integer
-        left = []
-        while self.current_token.type == INTEGER:
-            left.append(self.current_token.value)
-            self.eat(INTEGER)
+        result = self.term()
+        while self.current_token.type in (PLUS, MINUS):
+            token = self.current_token
+            if token.type == PLUS:
+                self.eat(PLUS)
+                result = result + self.term()
+            elif token.type == MINUS:
+                self.eat(MINUS)
+                result = result - self.term()
+            elif token.type == MUL:
+                self.eat(MUL)
+                result = result - self.term()
+            elif token.type == DIV:
+                self.eat(DIV)
+                result = result - self.term()
 
-        # we expect the current token to be a '+' token
-        op = self.current_token
-        if op.type == MINUS:
-            self.eat(MINUS)
-        elif op.type == PLUS:
-            self.eat(PLUS)
-        elif op.type == MUL:
-            self.eat(MUL)
-        elif op.type == DIV:
-            self.eat(DIV)
+        return result
 
-        # we expect the current token to be a single-digit integer
-        right = []
-        while self.current_token.type == INTEGER:
-            right.append(self.current_token.value)
-            self.eat(INTEGER)
-        # after the above call the self.current_token is set to
-        # EOF token
 
-        # at this point INTEGER PLUS INTEGER sequence of tokens
-        # has been successfully found and the method can just
-        # return the result of adding two integers, thus
-        # effectively interpreting client input
-        int1 = int("".join(str(lc) for lc in left))
-        int2 = int("".join(str(rc) for rc in right))
-        return Operators[op.type](int1, int2)
 
 
 def main():
